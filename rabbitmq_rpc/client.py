@@ -66,8 +66,8 @@ class RPCClient:
         try:
             await with_retry_and_timeout(
                 self.rpc.call(
-                    event,
-                    data,
+                    method_name=event,
+                    kwargs=data,
                     expiration=expiration,
                     priority=priority,
                     delivery_mode=delivery_mode,
@@ -96,8 +96,8 @@ class RPCClient:
         try:
             return await with_retry_and_timeout(
                 self.rpc.call(
-                    event,
-                    data,
+                    method_name=event,
+                    kwargs=data,
                     expiration=expiration,
                     priority=priority,
                     delivery_mode=delivery_mode,
