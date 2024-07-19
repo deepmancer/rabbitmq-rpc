@@ -11,6 +11,7 @@ setup(
     install_requires=[
         "aio-pika",
         "tenacity",
+        "pydantic",
     ],
     license='Apache License 2.0',
     keywords="event rpc aio-pika rabbitmq microservice",

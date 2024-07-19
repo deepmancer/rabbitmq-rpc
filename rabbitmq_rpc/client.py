@@ -6,6 +6,7 @@ from typing import Type, Union, Callable, Any, Optional, Protocol
 import aio_pika
 from aio_pika import DeliveryMode
 from aio_pika.patterns import RPC, JsonRPC
+from pydantic import BaseModel
 
 from .exceptions import ConnectionError, RPCError, EventRegistrationError, EventPublishError, EventSubscribeError
 from .utils import with_retry_and_timeout
@@ -53,7 +54,7 @@ class RPCClient:
     async def send(
         self,
         event: str,
-        data: dict,
+        data: Union[dict, Type[BaseModel]],
         expiration: Optional[int] = None,
         priority: int = 5,
         delivery_mode: DeliveryMode = DeliveryMode.PERSISTENT,
@@ -64,6 +65,8 @@ class RPCClient:
         if not self.is_connected:
             raise ConnectionError("RPCClient is not connected")
         try:
+            if not isinstance(data, dict):
+                data = data.dict()
             await with_retry_and_timeout(
                 self.rpc.call(
                     method_name=event,
@@ -83,7 +86,7 @@ class RPCClient:
     async def call(
         self,
         event: str,
-        data: dict,
+        data: Union[dict, Type[BaseModel]],
         expiration: Optional[int] = None,
         priority: int = 5,
         delivery_mode: DeliveryMode = DeliveryMode.PERSISTENT,
@@ -94,6 +97,8 @@ class RPCClient:
         if not self.is_connected:
             raise ConnectionError("RPCClient is not connected")
         try:
+            if not isinstance(data, dict):
+                data = data.dict()
             return await with_retry_and_timeout(
                 self.rpc.call(
                     method_name=event,
@@ -113,7 +118,7 @@ class RPCClient:
     def set_event_loop(self, loop: AbstractEventLoop) -> None:
         self.loop = loop
 
-    async def connect(self, ssl: bool = True, **kwargs: Any) -> None:
+    async def connect(self, ssl: bool = False, **kwargs: Any) -> None:
         try:
             self.connection = await aio_pika.connect_robust(
                 self.url, loop=self.loop, ssl=ssl
@@ -169,7 +174,7 @@ class RPCClient:
         self, 
         exchange_name: str, 
         routing_key: str, 
-        message: dict, 
+        message: Union[dict, Type[BaseModel]], 
         exchange_type: aio_pika.ExchangeType = aio_pika.ExchangeType.DIRECT, 
         durable: bool = True, 
         timeout: Optional[float] = None,
@@ -179,6 +184,8 @@ class RPCClient:
         if not self.is_connected:
             raise ConnectionError("RPCClient is not connected")
         try:
+            if not isinstance(message, dict):
+                message = message.dict()
             await with_retry_and_timeout(
                 self._publish(exchange_name, routing_key, message, exchange_type, durable, **kwargs),
                 timeout,
