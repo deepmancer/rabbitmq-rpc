@@ -18,7 +18,7 @@ class RPCClient:
     def __init__(
         self,
         config: RabbitMQConfig,
-        rpc_cls: Type[Union[RPC, JsonRPC]] = JsonRPC,
+        rpc_cls: Type[Union[RPC, JsonRPC]] = RPC,
         logger: logging.Logger = logging.getLogger(__name__),
     ) -> None:
         self.config: RabbitMQConfig = config
@@ -34,8 +34,8 @@ class RPCClient:
 
     @staticmethod
     async def create(
-        rpc_cls: Type[Union[RPC, JsonRPC]] = JsonRPC,
-        rabbitmq_config: Optional[RabbitMQConfig] = None,
+        config: Optional[RabbitMQConfig] = None,
+        rpc_cls: Type[Union[RPC, JsonRPC]] = RPC,
         url: Optional[str] = None,
         host: Optional[str] = None,
         port: Optional[int] = None,
@@ -45,16 +45,13 @@ class RPCClient:
         ssl: bool = False,
         logger: logging.Logger = logging.getLogger(__name__),
     ) -> 'RPCClient':
-        if rabbitmq_config is not None:
-            rabbitmq_url = rabbitmq_config.get_url()
-        else:
-            rabbitmq_config = RabbitMQConfig(
+        if config is not None:
+            config = RabbitMQConfig(
                 host=host, port=port, user=user, password=password, vhost=vhost, url=url, ssl_connection=ssl,
             )
-            rabbitmq_url = rabbitmq_config.get_url()
 
         client = RPCClient(
-            rabbitmq_config,
+            config,
             rpc_cls=rpc_cls,
             logger=logger,
         )
