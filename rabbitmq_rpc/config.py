@@ -15,7 +15,7 @@ class RabbitMQConfig(BaseModel):
     host: str = Field(default_factory=lambda: env_var("RABBITMQ_HOST", "localhost", str))
     port: int = Field(default_factory=lambda: env_var("RABBITMQ_PORT", 5672, int))
     user: str = Field(default_factory=lambda: env_var("RABBITMQ_USER", "rabbitmq_user", str))
-    password: str = Field(default_factory=lambda: env_var("RABBITMQ_PASSWORD", "rabbitmq_password", str))
+    password: str = Field(default_factory=lambda: env_var("RABBITMQ_PASS", "rabbitmq_password", str))
     vhost: Optional[str] = Field(default_factory=lambda: env_var("RABBITMQ_VHOST", "/", str))
     ssl_connection: bool = Field(default_factory=lambda: env_var("RABBITMQ_SSL_CONNECTION", False, bool))
     url: Optional[str] = None
