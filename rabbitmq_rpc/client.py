@@ -8,6 +8,7 @@ from aio_pika import DeliveryMode
 from aio_pika.patterns import RPC, JsonRPC
 from pydantic import BaseModel
 
+from .config import RabbitMQConfig
 from .exceptions import ConnectionError, RPCError, EventRegistrationError, EventPublishError, EventSubscribeError
 from .utils import with_retry_and_timeout
 
@@ -30,6 +31,7 @@ class RPCClient:
     @staticmethod
     async def create(
         rpc_cls: Type[Union[RPC, JsonRPC]] = JsonRPC,
+        rabbitmq_config: Optional[RabbitMQConfig] = None,
         url: Optional[str] = None,
         host: Optional[str] = None,
         port: Optional[int] = None,
@@ -38,12 +40,15 @@ class RPCClient:
         vhost: Optional[str] = None,
         logger: logging.Logger = logging.getLogger(__name__),
     ) -> 'RPCClient':
-        if url is None:
-            url = RabbitMQConfig(
-                host=host, port=port, user=user, password=password, vhost=vhost,
-            ).url
-        
-        client = RPCClient(url, rpc_cls, logger)
+        if rabbitmq_config is not None:
+            rabbitmq_url = rabbitmq_config.get_url()
+        else:
+            rabbitmq_config = RabbitMQConfig(
+                host=host, port=port, user=user, password=password, vhost=vhost, url=url,
+            )
+            rabbitmq_url = rabbitmq_config.get_url()
+
+        client = RPCClient(rabbitmq_url, rpc_cls, logger)
         await client.connect()
         return client
 

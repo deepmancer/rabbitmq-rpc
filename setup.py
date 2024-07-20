@@ -12,6 +12,7 @@ setup(
         "aio-pika",
         "tenacity",
         "pydantic",
+        "python-decouple",
     ],
     license='Apache License 2.0',
     keywords="event rpc aio-pika rabbitmq microservice",
