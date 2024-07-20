@@ -21,7 +21,7 @@ class RabbitMQConfig(BaseModel):
     url: Optional[str] = None
 
     def get_url(self) -> str:
-        if self.url:
+        if self.url is not None:
             return self.url
         vhost = self.vhost if self.vhost != "/" else ""
         return f"amqp{'s' if self.ssl_connection else ''}://{self.user}:{self.password}@{self.host}:{self.port}/{vhost}"
