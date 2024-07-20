@@ -20,16 +20,6 @@ class RabbitMQConfig(BaseModel):
     ssl_connection: bool = Field(default_factory=lambda: env_var("RABBITMQ_SSL_CONNECTION", False, bool))
     url: Optional[str] = None
 
-    @validator('port')
-    def validate_port(cls, value: int) -> int:
-        if not (1 <= value <= 65535):
-            raise ValueError('Port must be between 1 and 65535')
-        return value
-
-    @validator('vhost', pre=True, always=True)
-    def validate_vhost(cls, value: Optional[str]) -> str:
-        return value or "/"
-
     def get_url(self) -> str:
         if self.url:
             return self.url
@@ -44,6 +34,3 @@ class RabbitMQConfig(BaseModel):
 
     def __str__(self) -> str:
         return self.__repr__()
-
-    class Config:
-        validate_assignment = True
