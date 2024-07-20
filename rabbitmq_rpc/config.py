@@ -5,7 +5,7 @@ from decouple import config, UndefinedValueError
 
 T = TypeVar('T')
 
-def env_var(field_name: str, default: T, cast_type: Type[T] = str) -> T:
+def env_var(field_name: str, default: T = None, cast_type: Type[T] = str) -> T:
     try:
         return config(field_name, default=default, cast=cast_type)
     except UndefinedValueError:
