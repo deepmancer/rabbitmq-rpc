@@ -2,6 +2,8 @@ import json
 from typing import Optional, Any, Type, TypeVar
 from pydantic import BaseModel, Field, ValidationError, validator
 from decouple import config, UndefinedValueError
+from aio_pika.connection import make_url, URL
+
 
 T = TypeVar('T')
 
@@ -18,14 +20,8 @@ class RabbitMQConfig(BaseModel):
     user: Optional[str] = Field(default_factory=lambda: env_var("RABBITMQ_USER", "rabbitmq_user", str))
     password: Optional[str] = Field(default_factory=lambda: env_var("RABBITMQ_PASS", "rabbitmq_password", str))
     vhost: Optional[str] = Field(default_factory=lambda: env_var("RABBITMQ_VHOST", "/", str))
-    ssl_connection: Optional[bool] = Field(default_factory=lambda: env_var("RABBITMQ_SSL_CONNECTION", False, cast_type=lambda x: True if x.lower() == "true" else False))
-    url: Optional[str] = None
-
-    def get_url(self) -> str:
-        if self.url is not None:
-            return self.url
-        vhost = self.vhost if self.vhost != "/" else ""
-        return f"amqp{'s' if self.ssl_connection else ''}://{self.user}:{self.password}@{self.host}:{self.port}/{vhost}"
+    ssl_connection: Optional[bool] = Field(default_factory=lambda: env_var("RABBITMQ_SSL_CONNECTION", False, cast_type=lambda s: s.lower() in ['true', '1']))
+    url: Optional[str] = Field(default=None)
 
     def __repr__(self) -> str:
         attributes = self.dict(exclude={"url"})
@@ -35,3 +31,14 @@ class RabbitMQConfig(BaseModel):
 
     def __str__(self) -> str:
         return self.__repr__()
+
+    def get_url(self) -> URL:
+        return make_url(
+            url=self.url,
+            host=self.host,
+            port=self.port,
+            login=self.user,
+            password=self.password,
+            virtualhost=self.vhost,
+            ssl=self.ssl_connection
+        )

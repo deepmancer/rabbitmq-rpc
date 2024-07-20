@@ -5,6 +5,7 @@ from typing import Type, Union, Callable, Any, Optional, Protocol
 
 import aio_pika
 from aio_pika import DeliveryMode
+from aio_pika.connection import URL
 from aio_pika.patterns import RPC, JsonRPC
 from pydantic import BaseModel
 
@@ -29,7 +30,7 @@ class RPCClient:
         self.logger: logging.Logger = logger
 
     @property
-    def url(self) -> str:
+    def url(self) -> URL:
         return self.config.get_url()
 
     @staticmethod
@@ -61,6 +62,41 @@ class RPCClient:
     @property
     def is_connected(self) -> bool:
         return self.rpc is not None and not self.rpc.channel.is_closed
+
+    async def connect(self, **kwargs: Any) -> None:
+        try:
+            self.connection = await aio_pika.connect_robust(
+                url=self.url, loop=self.loop,
+            )
+            channel = await self.connection.channel()
+            self.rpc = await self.rpc_cls.create(channel, **kwargs)
+            self.logger.info("Connected to RabbitMQ")
+        except (aio_pika.exceptions.AMQPConnectionError, aio_pika.exceptions.AMQPChannelError) as e:
+            self.logger.error(f"Failed to connect to RabbitMQ at {self.url}: {str(e)}")
+            raise ConnectionError(f"Failed to connect to RabbitMQ: {str(e)}")
+
+    async def reconnect(self, **kwargs: Any) -> None:
+        try:
+            await self.close()
+            await self.connect(**kwargs)
+            self.logger.info("Reconnected to RabbitMQ")
+        except ConnectionError as e:
+            self.logger.error(f"Failed to reconnect to RabbitMQ: {str(e)}")
+            raise
+
+    async def close(self) -> None:
+        if self.connection:
+            try:
+                await self.connection.close()
+                self.rpc = None
+                self.connection = None
+                self.logger.info("Closed RabbitMQ connection")
+            except aio_pika.exceptions.AMQPError as e:
+                self.logger.error(f"Failed to close RabbitMQ connection: {str(e)}")
+                raise ConnectionError(f"Failed to close RabbitMQ connection: {str(e)}")
+
+    def set_event_loop(self, loop: AbstractEventLoop) -> None:
+        self.loop = loop
 
     def set_logger(self, logger: logging.Logger) -> None:
         self.logger = logger
@@ -146,41 +182,6 @@ class RPCClient:
             self.logger.error(f"Failed to call event {event}: {str(e)}")
             raise RPCError(f"Failed to call event {event}: {str(e)}")
 
-    def set_event_loop(self, loop: AbstractEventLoop) -> None:
-        self.loop = loop
-
-    async def connect(self, ssl: bool = False, **kwargs: Any) -> None:
-        try:
-            self.connection = await aio_pika.connect_robust(
-                self.url, loop=self.loop, ssl=self.config.ssl_connection,
-            )
-            channel = await self.connection.channel()
-            self.rpc = await self.rpc_cls.create(channel, **kwargs)
-            self.logger.info("Connected to RabbitMQ")
-        except (aio_pika.exceptions.AMQPConnectionError, aio_pika.exceptions.AMQPChannelError) as e:
-            self.logger.error(f"Failed to connect to RabbitMQ: {str(e)}")
-            raise ConnectionError(f"Failed to connect to RabbitMQ: {str(e)}")
-
-    async def reconnect(self, **kwargs: Any) -> None:
-        try:
-            await self.close()
-            await self.connect(**kwargs)
-            self.logger.info("Reconnected to RabbitMQ")
-        except ConnectionError as e:
-            self.logger.error(f"Failed to reconnect to RabbitMQ: {str(e)}")
-            raise
-
-    async def close(self) -> None:
-        if self.connection:
-            try:
-                await self.connection.close()
-                self.rpc = None
-                self.connection = None
-                self.logger.info("Closed RabbitMQ connection")
-            except aio_pika.exceptions.AMQPError as e:
-                self.logger.error(f"Failed to close RabbitMQ connection: {str(e)}")
-                raise ConnectionError(f"Failed to close RabbitMQ connection: {str(e)}")
-
     async def register_event(self, event: str, handler: Callable[..., Any], **kwargs: Any) -> None:
         if not self.is_connected:
             raise ConnectionError("RPCClient is not connected")
@@ -226,36 +227,6 @@ class RPCClient:
             self.logger.error(f"Failed to publish event to exchange {exchange_name}: {str(e)}")
             raise EventPublishError(f"Failed to publish event to exchange {exchange_name}: {str(e)}")
 
-    async def _publish(
-        self, 
-        exchange_name: str, 
-        routing_key: str, 
-        message: dict, 
-        exchange_type: aio_pika.ExchangeType, 
-        durable: bool, 
-        **kwargs: Any,
-    ) -> None:
-        try:
-            channel = await self.connection.channel()
-            exchange = await channel.declare_exchange(
-                exchange_name, 
-                exchange_type=exchange_type,
-                durable=durable,
-            )
-            await exchange.publish(
-                aio_pika.Message(
-                    body=json.dumps(message).encode(),
-                    content_type='application/json',
-                    delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
-                ),
-                routing_key=routing_key,
-                **kwargs,
-            )
-            self.logger.info(f"Published event to exchange {exchange_name} with routing key {routing_key}")
-        except (aio_pika.exceptions.AMQPError, json.JSONDecodeError) as e:
-            self.logger.error(f"Failed to publish event: {str(e)}")
-            raise EventPublishError(f"Failed to publish event: {str(e)}")
-
     async def subscribe_event(
         self, 
         queue_name: str, 
@@ -292,6 +263,36 @@ class RPCClient:
         except (aio_pika.exceptions.AMQPError, ValueError) as e:
             self.logger.error(f"Failed to subscribe to queue {queue_name}: {str(e)}")
             raise EventSubscribeError(f"Failed to subscribe to queue {queue_name}: {str(e)}")
+
+    async def _publish(
+        self, 
+        exchange_name: str, 
+        routing_key: str, 
+        message: dict, 
+        exchange_type: aio_pika.ExchangeType, 
+        durable: bool, 
+        **kwargs: Any,
+    ) -> None:
+        try:
+            channel = await self.connection.channel()
+            exchange = await channel.declare_exchange(
+                exchange_name, 
+                exchange_type=exchange_type,
+                durable=durable,
+            )
+            await exchange.publish(
+                aio_pika.Message(
+                    body=json.dumps(message).encode(),
+                    content_type='application/json',
+                    delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
+                ),
+                routing_key=routing_key,
+                **kwargs,
+            )
+            self.logger.info(f"Published event to exchange {exchange_name} with routing key {routing_key}")
+        except (aio_pika.exceptions.AMQPError, json.JSONDecodeError) as e:
+            self.logger.error(f"Failed to publish event: {str(e)}")
+            raise EventPublishError(f"Failed to publish event: {str(e)}")
 
     def __repr__(self) -> str:
         return f"RPCClient(config={self.config}, rpc_cls={self.rpc_cls})"
