@@ -45,7 +45,7 @@ class RPCClient:
         ssl: bool = False,
         logger: logging.Logger = logging.getLogger(__name__),
     ) -> 'RPCClient':
-        if config is not None:
+        if config is None:
             config = RabbitMQConfig(
                 host=host, port=port, user=user, password=password, vhost=vhost, url=url, ssl_connection=ssl,
             )
