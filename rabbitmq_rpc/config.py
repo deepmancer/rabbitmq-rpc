@@ -5,10 +5,11 @@ from decouple import config, UndefinedValueError
 
 T = TypeVar('T')
 
-def env_var(field_name: str, default: T = None, cast_type: Type[T] = str) -> T:
+def env_var(field_name: str, default = None, cast_type = str) -> T:
     try:
-        return config(field_name, default=default, cast=cast_type)
-    except UndefinedValueError:
+        value = config(field_name, default=default)
+        return cast_type(value)
+    except Exception:
         return default
 
 class RabbitMQConfig(BaseModel):
@@ -17,7 +18,7 @@ class RabbitMQConfig(BaseModel):
     user: Optional[str] = Field(default_factory=lambda: env_var("RABBITMQ_USER", "rabbitmq_user", str))
     password: Optional[str] = Field(default_factory=lambda: env_var("RABBITMQ_PASS", "rabbitmq_password", str))
     vhost: Optional[str] = Field(default_factory=lambda: env_var("RABBITMQ_VHOST", "/", str))
-    ssl_connection: Optional[bool] = Field(default_factory=lambda: env_var("RABBITMQ_SSL_CONNECTION", False, bool))
+    ssl_connection: Optional[bool] = Field(default_factory=lambda: env_var("RABBITMQ_SSL_CONNECTION", False, cast_type=lambda x: True if x.lower() == "true" else False))
     url: Optional[str] = None
 
     def get_url(self) -> str:
