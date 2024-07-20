@@ -17,16 +17,20 @@ logging.basicConfig(level=logging.INFO)
 class RPCClient:
     def __init__(
         self,
-        url: str,
+        config: RabbitMQConfig,
         rpc_cls: Type[Union[RPC, JsonRPC]] = JsonRPC,
         logger: logging.Logger = logging.getLogger(__name__),
     ) -> None:
-        self.url: str = url
+        self.config: RabbitMQConfig = config
         self.rpc_cls: Type[Union[RPC, JsonRPC]] = rpc_cls
         self.loop: Optional[AbstractEventLoop] = None
         self.rpc: Optional[Union[RPC, JsonRPC]] = None
         self.connection: Optional[aio_pika.robust_connection.RobustConnection] = None
         self.logger: logging.Logger = logger
+
+    @property
+    def url(self) -> str:
+        return self.config.get_url()
 
     @staticmethod
     async def create(
@@ -38,23 +42,48 @@ class RPCClient:
         user: Optional[str] = None,
         password: Optional[str] = None,
         vhost: Optional[str] = None,
+        ssl: bool = False,
         logger: logging.Logger = logging.getLogger(__name__),
     ) -> 'RPCClient':
         if rabbitmq_config is not None:
             rabbitmq_url = rabbitmq_config.get_url()
         else:
             rabbitmq_config = RabbitMQConfig(
-                host=host, port=port, user=user, password=password, vhost=vhost, url=url,
+                host=host, port=port, user=user, password=password, vhost=vhost, url=url, ssl_connection=ssl,
             )
             rabbitmq_url = rabbitmq_config.get_url()
 
-        client = RPCClient(rabbitmq_url, rpc_cls, logger)
+        client = RPCClient(
+            rabbitmq_config,
+            rpc_cls=rpc_cls,
+            logger=logger,
+        )
         await client.connect()
         return client
 
     @property
     def is_connected(self) -> bool:
         return self.rpc is not None and not self.rpc.channel.is_closed
+
+    def set_logger(self, logger: logging.Logger) -> None:
+        self.logger = logger
+        
+    def set_rpc_class(self, rpc_cls: Type[Union[RPC, JsonRPC]]) -> None:
+        self.rpc_cls = rpc_cls
+    
+    def get_logger(self) -> logging.Logger:
+        return self.logger
+    
+    def get_rpc_class(self) -> Type[Union[RPC, JsonRPC]]:
+        return self.rpc_cls
+
+    def get_connection(self) -> Optional[aio_pika.robust_connection.RobustConnection]:
+        return self.connection
+    
+    async def get_channel(self) -> aio_pika.Channel:
+        if not self.is_connected:
+            await self.connect()
+        return self.rpc.channel
 
     async def send(
         self,
@@ -126,7 +155,7 @@ class RPCClient:
     async def connect(self, ssl: bool = False, **kwargs: Any) -> None:
         try:
             self.connection = await aio_pika.connect_robust(
-                self.url, loop=self.loop, ssl=ssl
+                self.url, loop=self.loop, ssl=self.config.ssl_connection,
             )
             channel = await self.connection.channel()
             self.rpc = await self.rpc_cls.create(channel, **kwargs)
@@ -266,3 +295,6 @@ class RPCClient:
         except (aio_pika.exceptions.AMQPError, ValueError) as e:
             self.logger.error(f"Failed to subscribe to queue {queue_name}: {str(e)}")
             raise EventSubscribeError(f"Failed to subscribe to queue {queue_name}: {str(e)}")
+
+    def __repr__(self) -> str:
+        return f"RPCClient(config={self.config}, rpc_cls={self.rpc_cls})"
