@@ -1,9 +1,8 @@
 import json
-from typing import Optional, Any, Type, TypeVar
+from typing import Optional, Any, Type, TypeVar, Callable
 from pydantic import BaseModel, Field, ValidationError, validator
-from decouple import config, UndefinedValueError
+from decouple import config
 from aio_pika.connection import make_url, URL
-
 
 T = TypeVar('T')
 

@@ -1,10 +1,12 @@
 import json
 import logging
+import threading
+import asyncio
 from asyncio import AbstractEventLoop, TimeoutError
-from typing import Type, Union, Callable, Any, Optional, Protocol
+from typing import Type, Union, Callable, Any, Optional, Dict
 
 import aio_pika
-from aio_pika import DeliveryMode
+from aio_pika import DeliveryMode, Channel, ExchangeType, Message, exceptions
 from aio_pika.connection import URL
 from aio_pika.patterns import RPC, JsonRPC
 from pydantic import BaseModel
@@ -16,18 +18,23 @@ from .utils import with_retry_and_timeout
 logging.basicConfig(level=logging.INFO)
 
 class RPCClient:
+    _instances: Dict[str, 'RPCClient'] = {}
+    _locks: Dict[str, threading.Lock] = {}
+
     def __init__(
         self,
         config: RabbitMQConfig,
         rpc_cls: Type[Union[RPC, JsonRPC]] = RPC,
+        loop: Optional[AbstractEventLoop] = None,
         logger: logging.Logger = logging.getLogger(__name__),
     ) -> None:
         self.config: RabbitMQConfig = config
         self.rpc_cls: Type[Union[RPC, JsonRPC]] = rpc_cls
-        self.loop: Optional[AbstractEventLoop] = None
+        self.loop: Optional[AbstractEventLoop] = loop
+        self.logger: logging.Logger = logger
+
         self.rpc: Optional[Union[RPC, JsonRPC]] = None
         self.connection: Optional[aio_pika.robust_connection.RobustConnection] = None
-        self.logger: logging.Logger = logger
 
     @property
     def url(self) -> URL:
@@ -37,6 +44,8 @@ class RPCClient:
     async def create(
         config: Optional[RabbitMQConfig] = None,
         rpc_cls: Type[Union[RPC, JsonRPC]] = RPC,
+        loop: Optional[AbstractEventLoop] = None,
+        logger: Optional[logging.Logger] = None,
         url: Optional[str] = None,
         host: Optional[str] = None,
         port: Optional[int] = None,
@@ -44,20 +53,49 @@ class RPCClient:
         password: Optional[str] = None,
         vhost: Optional[str] = None,
         ssl: bool = False,
-        logger: logging.Logger = logging.getLogger(__name__),
+        **kwargs, 
     ) -> 'RPCClient':
         if config is None:
             config = RabbitMQConfig(
-                host=host, port=port, user=user, password=password, vhost=vhost, url=url, ssl_connection=ssl,
+                host=host,
+                port=port,
+                user=user,
+                password=password,
+                vhost=vhost,
+                url=url,
+                ssl_connection=ssl,
             )
 
-        client = RPCClient(
-            config,
-            rpc_cls=rpc_cls,
-            logger=logger,
-        )
-        await client.connect()
-        return client
+        url = config.get_url()
+
+        if url not in RPCClient._locks:
+            RPCClient._locks[url] = threading.Lock()
+
+        with RPCClient._locks[url]:
+            if url not in RPCClient._instances:
+                if loop is None:
+                    loop = asyncio.get_event_loop()
+                RPCClient._instances[url] = await RPCClient.__create_instance(
+                    config=config,
+                    logger=logger,
+                    loop=loop,
+                    rpc_cls=rpc_cls,
+                    **kwargs,
+                )
+
+        return RPCClient._instances[url]
+
+    @staticmethod
+    async def __create_instance(
+        config: RabbitMQConfig,
+        rpc_cls: Type[Union[RPC, JsonRPC]],
+        loop: AbstractEventLoop,
+        logger: logging.Logger,
+        **kwargs,
+    ) -> 'RPCClient':
+        instance = RPCClient(config=config, rpc_cls=rpc_cls, loop=loop, logger=logger)
+        await instance.connect(**kwargs)
+        return instance
 
     @property
     def is_connected(self) -> bool:
@@ -71,7 +109,7 @@ class RPCClient:
             channel = await self.connection.channel()
             self.rpc = await self.rpc_cls.create(channel, **kwargs)
             self.logger.info("Connected to RabbitMQ")
-        except (aio_pika.exceptions.AMQPConnectionError, aio_pika.exceptions.AMQPChannelError) as e:
+        except (exceptions.AMQPConnectionError, exceptions.AMQPChannelError) as e:
             self.logger.error(f"Failed to connect to RabbitMQ at {self.url}: {str(e)}")
             raise ConnectionError(f"Failed to connect to RabbitMQ: {str(e)}")
 
@@ -82,7 +120,7 @@ class RPCClient:
             self.logger.info("Reconnected to RabbitMQ")
         except ConnectionError as e:
             self.logger.error(f"Failed to reconnect to RabbitMQ: {str(e)}")
-            raise
+            raise e
 
     async def close(self) -> None:
         if self.connection:
@@ -91,29 +129,31 @@ class RPCClient:
                 self.rpc = None
                 self.connection = None
                 self.logger.info("Closed RabbitMQ connection")
-            except aio_pika.exceptions.AMQPError as e:
+            except exceptions.AMQPError as e:
                 self.logger.error(f"Failed to close RabbitMQ connection: {str(e)}")
                 raise ConnectionError(f"Failed to close RabbitMQ connection: {str(e)}")
 
     def set_event_loop(self, loop: AbstractEventLoop) -> None:
         self.loop = loop
+        if self.rpc:
+            self.rpc.loop = loop
 
     def set_logger(self, logger: logging.Logger) -> None:
         self.logger = logger
-        
+
     def set_rpc_class(self, rpc_cls: Type[Union[RPC, JsonRPC]]) -> None:
         self.rpc_cls = rpc_cls
-    
+
     def get_logger(self) -> logging.Logger:
         return self.logger
-    
+
     def get_rpc_class(self) -> Type[Union[RPC, JsonRPC]]:
         return self.rpc_cls
 
     def get_connection(self) -> Optional[aio_pika.robust_connection.RobustConnection]:
         return self.connection
-    
-    async def get_channel(self) -> aio_pika.Channel:
+
+    async def get_channel(self) -> Channel:
         if not self.is_connected:
             await self.connect()
         return self.rpc.channel
@@ -146,7 +186,7 @@ class RPCClient:
                 timeout,
                 retry_count,
             )
-        except (TimeoutError, aio_pika.exceptions.AMQPError) as e:
+        except (TimeoutError, exceptions.AMQPError) as e:
             self.logger.error(f"Failed to send event {event}: {str(e)}")
             raise RPCError(f"Failed to send event {event}: {str(e)}")
 
@@ -178,7 +218,7 @@ class RPCClient:
                 timeout,
                 retry_count,
             )
-        except (TimeoutError, aio_pika.exceptions.AMQPError) as e:
+        except (TimeoutError, exceptions.AMQPError) as e:
             self.logger.error(f"Failed to call event {event}: {str(e)}")
             raise RPCError(f"Failed to call event {event}: {str(e)}")
 
@@ -188,7 +228,7 @@ class RPCClient:
         try:
             await self.rpc.register(event, handler, **kwargs)
             self.logger.info(f"Registered event handler for {event}")
-        except (aio_pika.exceptions.AMQPError, ValueError) as e:
+        except (exceptions.AMQPError, ValueError) as e:
             self.logger.error(f"Failed to register event handler for {event}: {str(e)}")
             raise EventRegistrationError(f"Failed to register event handler for {event}: {str(e)}")
 
@@ -198,7 +238,7 @@ class RPCClient:
         try:
             await self.rpc.unregister(handler)
             self.logger.info("Unregistered event handler")
-        except (aio_pika.exceptions.AMQPError, ValueError) as e:
+        except (exceptions.AMQPError, ValueError) as e:
             self.logger.error(f"Failed to unregister event handler: {str(e)}")
             raise EventRegistrationError(f"Failed to unregister event handler: {str(e)}")
 
@@ -207,7 +247,7 @@ class RPCClient:
         exchange_name: str, 
         routing_key: str, 
         message: Union[dict, Type[BaseModel]], 
-        exchange_type: aio_pika.ExchangeType = aio_pika.ExchangeType.DIRECT, 
+        exchange_type: ExchangeType = ExchangeType.DIRECT, 
         durable: bool = True, 
         timeout: Optional[float] = None,
         retry_count: int = 3,
@@ -223,7 +263,7 @@ class RPCClient:
                 timeout,
                 retry_count,
             )
-        except (TimeoutError, aio_pika.exceptions.AMQPError) as e:
+        except (TimeoutError, exceptions.AMQPError) as e:
             self.logger.error(f"Failed to publish event to exchange {exchange_name}: {str(e)}")
             raise EventPublishError(f"Failed to publish event to exchange {exchange_name}: {str(e)}")
 
@@ -244,7 +284,7 @@ class RPCClient:
                 timeout,
                 retry_count,
             )
-        except (TimeoutError, aio_pika.exceptions.AMQPError) as e:
+        except (TimeoutError, exceptions.AMQPError) as e:
             self.logger.error(f"Failed to subscribe to queue {queue_name}: {str(e)}")
             raise EventSubscribeError(f"Failed to subscribe to queue {queue_name}: {str(e)}")
 
@@ -260,7 +300,7 @@ class RPCClient:
             queue = await channel.declare_queue(queue_name, durable=durable, **kwargs)
             await queue.consume(handler)
             self.logger.info(f"Subscribed to queue {queue_name}")
-        except (aio_pika.exceptions.AMQPError, ValueError) as e:
+        except (exceptions.AMQPError, ValueError) as e:
             self.logger.error(f"Failed to subscribe to queue {queue_name}: {str(e)}")
             raise EventSubscribeError(f"Failed to subscribe to queue {queue_name}: {str(e)}")
 
@@ -269,7 +309,7 @@ class RPCClient:
         exchange_name: str, 
         routing_key: str, 
         message: dict, 
-        exchange_type: aio_pika.ExchangeType, 
+        exchange_type: ExchangeType, 
         durable: bool, 
         **kwargs: Any,
     ) -> None:
@@ -281,16 +321,16 @@ class RPCClient:
                 durable=durable,
             )
             await exchange.publish(
-                aio_pika.Message(
+                Message(
                     body=json.dumps(message).encode(),
                     content_type='application/json',
-                    delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
+                    delivery_mode=DeliveryMode.PERSISTENT,
                 ),
                 routing_key=routing_key,
                 **kwargs,
             )
             self.logger.info(f"Published event to exchange {exchange_name} with routing key {routing_key}")
-        except (aio_pika.exceptions.AMQPError, json.JSONDecodeError) as e:
+        except (exceptions.AMQPError, json.JSONDecodeError) as e:
             self.logger.error(f"Failed to publish event: {str(e)}")
             raise EventPublishError(f"Failed to publish event: {str(e)}")
 
