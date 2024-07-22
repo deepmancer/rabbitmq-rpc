@@ -1,9 +1,9 @@
-# rabbitmq_rpc
+# rabbitmq-rpc
 
 `rabbitmq_rpc` is a Python package that provides an easy-to-use RabbitMQ RPC client for event-driven microservices. Built upon the `aio-pika` library, it simplifies interactions with RabbitMQ by handling the complexities of asynchronous communication and connection management.
 
 # Features
-- **`aio-pika` Compatibility:** Fully compatible with the `aio-pika` library.
+- **aio-pika Compatibility:** Fully compatible with the `aio-pika` library.
 - **Asynchronous RPC Client:** Built on top of `aio-pika`, it supports asynchronous communication for inter-service communication.
 - **Distributed Environment Integration:** Connects services across different containers and URLs.
 - **Event Registration and Handling:** Easily register and handle events with custom event handlers.
