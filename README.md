@@ -10,14 +10,14 @@
 - **Customizable RPC Protocol:** Supports any subclass of the `aio_pika.patterns.RPC` class.
 - **Thread-safe Connection:** Ensures that a single instance of the RPC client is used across threads using a singleton design pattern.
 - **Retry and Timeout Mechanism:** Built-in support for retrying failed calls and handling timeouts using `with_retry_and_timeout`.
-- **No Server-side Implementation Required:**  With only a running RabbitMQ server, eliminates the need for additional RPC server implementations.
+- **No Server-side Implementation Required:**  Only requires a running RabbitMQ server, with no need for RPC server implementations.
 
 ## Installation
 
 To install `rabbitmq_rpc`, use pip:
 
 ```sh
-pip install git+https://github.com/alirezaheidari-cs/rabbitmq_rpc.git
+pip install git+https://github.com/alirezaheidari-cs/rabbitmq-rpc.git
 ```
 
 # Usage
