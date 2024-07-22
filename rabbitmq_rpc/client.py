@@ -15,8 +15,6 @@ from .config import RabbitMQConfig
 from .exceptions import ConnectionError, RPCError, EventRegistrationError, EventPublishError, EventSubscribeError
 from .utils import with_retry_and_timeout
 
-logging.basicConfig(level=logging.INFO)
-
 class RPCClient:
     _instances: Dict[str, 'RPCClient'] = {}
     _locks: Dict[str, threading.Lock] = {}
@@ -67,6 +65,10 @@ class RPCClient:
             )
 
         url = config.get_url()
+
+        if logger is None:
+            logging.basicConfig(level=logging.INFO)
+            logger = logging.getLogger(__name__)
 
         if url not in RPCClient._locks:
             RPCClient._locks[url] = threading.Lock()
