@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="rabbitmq_rpc",
-    version="0.5.0",
+    version="0.6.0",
     description="A RabbitMQ RPC client package for easy event-driven microservices",
     author="Alireza Heidari",
     author_email="alirezaheidari.cs@gmail.com",

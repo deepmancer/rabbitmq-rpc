@@ -1,5 +1,6 @@
 import json
 from typing import Optional, Any, Type, TypeVar, Callable
+
 from pydantic import BaseModel, Field, ValidationError, validator
 from decouple import config
 from aio_pika.connection import make_url, URL
@@ -31,13 +32,15 @@ class RabbitMQConfig(BaseModel):
     def __str__(self) -> str:
         return self.__repr__()
 
-    def get_url(self) -> URL:
-        return make_url(
-            url=self.url,
-            host=self.host,
-            port=self.port,
-            login=self.user,
-            password=self.password,
-            virtualhost=self.vhost,
-            ssl=self.ssl_connection
+    def get_url(self) -> str:
+        return str(
+            make_url(
+                url=self.url,
+                host=self.host,
+                port=self.port,
+                login=self.user,
+                password=self.password,
+                virtualhost=self.vhost,
+                ssl=self.ssl_connection
+            )
         )

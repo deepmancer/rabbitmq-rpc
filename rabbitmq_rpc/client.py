@@ -5,10 +5,13 @@ import asyncio
 from asyncio import AbstractEventLoop, TimeoutError
 from typing import Type, Union, Callable, Any, Optional, Dict
 
-import aio_pika
-from aio_pika import DeliveryMode, Channel, ExchangeType, Message, exceptions
+from aio_pika import (
+    connect_robust,
+    DeliveryMode, Channel, ExchangeType, Message, exceptions, RobustConnection,
+)
 from aio_pika.connection import URL
 from aio_pika.patterns import RPC, JsonRPC
+
 from pydantic import BaseModel
 
 from .config import RabbitMQConfig
@@ -22,26 +25,26 @@ class RPCClient:
     def __init__(
         self,
         config: RabbitMQConfig,
-        rpc_cls: Type[Union[RPC, JsonRPC]] = RPC,
+        rpc_cls: Type[RPC],
         loop: Optional[AbstractEventLoop] = None,
         logger: logging.Logger = logging.getLogger(__name__),
     ) -> None:
         self.config: RabbitMQConfig = config
-        self.rpc_cls: Type[Union[RPC, JsonRPC]] = rpc_cls
+        self.rpc_cls: Type[RPC] = rpc_cls
         self.loop: Optional[AbstractEventLoop] = loop
         self.logger: logging.Logger = logger
 
         self.rpc: Optional[Union[RPC, JsonRPC]] = None
-        self.connection: Optional[aio_pika.robust_connection.RobustConnection] = None
+        self.connection: Optional[RobustConnection] = None
 
     @property
-    def url(self) -> URL:
+    def url(self) -> str:
         return self.config.get_url()
 
     @staticmethod
     async def create(
         config: Optional[RabbitMQConfig] = None,
-        rpc_cls: Type[Union[RPC, JsonRPC]] = RPC,
+        rpc_cls: Type[RPC] = RPC,
         loop: Optional[AbstractEventLoop] = None,
         logger: Optional[logging.Logger] = None,
         url: Optional[str] = None,
@@ -66,17 +69,17 @@ class RPCClient:
 
         url = config.get_url()
 
-        if logger is None:
-            logging.basicConfig(level=logging.INFO)
-            logger = logging.getLogger(__name__)
-
         if url not in RPCClient._locks:
             RPCClient._locks[url] = threading.Lock()
 
         with RPCClient._locks[url]:
             if url not in RPCClient._instances:
-                if loop is None:
-                    loop = asyncio.get_event_loop()
+                loop = asyncio.get_running_loop() if loop is None else loop
+
+                if logger is None:
+                    logging.basicConfig(level=logging.INFO)
+                    logger = logging.getLogger(__name__)
+
                 RPCClient._instances[url] = await RPCClient.__create_instance(
                     config=config,
                     logger=logger,
@@ -90,7 +93,7 @@ class RPCClient:
     @staticmethod
     async def __create_instance(
         config: RabbitMQConfig,
-        rpc_cls: Type[Union[RPC, JsonRPC]],
+        rpc_cls: Type[RPC],
         loop: AbstractEventLoop,
         logger: logging.Logger,
         **kwargs,
@@ -101,15 +104,16 @@ class RPCClient:
 
     @property
     def is_connected(self) -> bool:
-        return self.rpc is not None and not self.rpc.channel.is_closed
+        return self.rpc is not None and self.rpc.channel and not self.rpc.channel.is_closed
 
     async def connect(self, **kwargs: Any) -> None:
         try:
-            self.connection = await aio_pika.connect_robust(
-                url=self.url, loop=self.loop,
+            self.connection = await connect_robust(
+                url=URL(self.url), loop=self.loop,
             )
             channel = await self.connection.channel()
             self.rpc = await self.rpc_cls.create(channel, **kwargs)
+            self.rpc.loop = self.loop
             self.logger.info("Connected to RabbitMQ")
         except (exceptions.AMQPConnectionError, exceptions.AMQPChannelError) as e:
             self.logger.error(f"Failed to connect to RabbitMQ at {self.url}: {str(e)}")
@@ -143,16 +147,16 @@ class RPCClient:
     def set_logger(self, logger: logging.Logger) -> None:
         self.logger = logger
 
-    def set_rpc_class(self, rpc_cls: Type[Union[RPC, JsonRPC]]) -> None:
+    def set_rpc_class(self, rpc_cls: Type[RPC]) -> None:
         self.rpc_cls = rpc_cls
 
     def get_logger(self) -> logging.Logger:
         return self.logger
 
-    def get_rpc_class(self) -> Type[Union[RPC, JsonRPC]]:
+    def get_rpc_class(self) -> Type[RPC]:
         return self.rpc_cls
 
-    def get_connection(self) -> Optional[aio_pika.robust_connection.RobustConnection]:
+    def get_connection(self) -> Optional[RobustConnection]:
         return self.connection
 
     async def get_channel(self) -> Channel:
@@ -228,7 +232,7 @@ class RPCClient:
         if not self.is_connected:
             raise ConnectionError("RPCClient is not connected")
         try:
-            await self.rpc.register(event, handler, **kwargs)
+            await self.rpc.register(method_name=event, func=handler, **kwargs)
             self.logger.info(f"Registered event handler for {event}")
         except (exceptions.AMQPError, ValueError) as e:
             self.logger.error(f"Failed to register event handler for {event}: {str(e)}")
@@ -338,3 +342,6 @@ class RPCClient:
 
     def __repr__(self) -> str:
         return f"RPCClient(config={self.config}, rpc_cls={self.rpc_cls})"
+
+    def __str__(self) -> str:
+        return self.__repr__()
