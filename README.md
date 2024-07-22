@@ -3,16 +3,14 @@
 `rabbitmq_rpc` is a Python package that provides an easy-to-use RabbitMQ RPC client for event-driven microservices. Built upon the `aio-pika` library, it simplifies interactions with RabbitMQ by handling the complexities of asynchronous communication and connection management.
 
 # Features
-
-- **Asynchronous RPC Client:** Built on top of `aio-pika`, it supports asynchronous communication for high performance and scalability.
+- **`aio-pika` Compatibility:** Fully compatible with the `aio-pika` library.
+- **Asynchronous RPC Client:** Built on top of `aio-pika`, it supports asynchronous communication for inter-service communication.
+- **Distributed Environment Integration:** Connects services across different containers and URLs.
 - **Event Registration and Handling:** Easily register and handle events with custom event handlers.
-- **Customizable RPC Classes:** Supports both `RPC` and `JsonRPC` classes for flexible message handling.
-- **Connection Management:** Robust connection handling with automatic reconnection support.
-- **Custom Exceptions:** Provides comprehensive error handling with custom exceptions for various failure scenarios.
-- **Thread-safe Singleton Instances:** Ensures that a single instance of the RPC client is used across threads using a singleton design pattern.
+- **Customizable RPC Protocol:** Supports any subclass of the `aio_pika.patterns.RPC` class.
+- **Thread-safe Connection:** Ensures that a single instance of the RPC client is used across threads using a singleton design pattern.
 - **Retry and Timeout Mechanism:** Built-in support for retrying failed calls and handling timeouts using `with_retry_and_timeout`.
-- **Configuration Flexibility:** Allows detailed configuration through a `RabbitMQConfig` class or individual parameters.
-- **No Extra Implementation Required:** Only a running RabbitMQ server is needed, with no additional implementation for the RPC server.
+- **No Server-side Implementation Required:**  With only a running RabbitMQ server, eliminates the need for additional RPC server implementations.
 
 ## Installation
 
