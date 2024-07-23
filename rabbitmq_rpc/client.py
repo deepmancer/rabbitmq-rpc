@@ -5,8 +5,7 @@ from asyncio import AbstractEventLoop, TimeoutError
 from typing import Type, Union, Callable, Any, Optional, Dict
 
 from aio_pika import (
-    connect_robust,
-    DeliveryMode, Channel, ExchangeType, Message, exceptions, RobustConnection,
+    connect_robust, DeliveryMode, Channel, ExchangeType, Message, exceptions, RobustConnection,
 )
 from aio_pika.connection import URL
 from aio_pika.patterns import RPC, JsonRPC
@@ -54,7 +53,7 @@ class RPCClient:
         ssl: bool = False,
         **kwargs,
     ) -> 'RPCClient':
-    if config is None:
+        if config is None:
             config = RabbitMQConfig(
                 host=host,
                 port=port,
