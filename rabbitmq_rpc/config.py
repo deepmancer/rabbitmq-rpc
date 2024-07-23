@@ -20,7 +20,7 @@ class RabbitMQConfig(BaseModel):
     user: Optional[str] = Field(default_factory=lambda: env_var("RABBITMQ_USER", "rabbitmq_user", str))
     password: Optional[str] = Field(default_factory=lambda: env_var("RABBITMQ_PASS", "rabbitmq_password", str))
     vhost: Optional[str] = Field(default_factory=lambda: env_var("RABBITMQ_VHOST", "/", str))
-    ssl_connection: Optional[bool] = Field(default_factory=lambda: env_var("RABBITMQ_SSL_CONNECTION", False, cast_type=lambda s: s.lower() in ['true', '1']))
+    ssl: Optional[bool] = Field(default=False)
     url: Optional[str] = Field(default=None)
 
     def __repr__(self) -> str:
@@ -41,6 +41,6 @@ class RabbitMQConfig(BaseModel):
                 login=self.user,
                 password=self.password,
                 virtualhost=self.vhost,
-                ssl=self.ssl_connection
+                ssl=self.ssl
             )
         )

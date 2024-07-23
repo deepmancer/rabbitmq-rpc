@@ -1,6 +1,5 @@
 import json
 import logging
-import threading
 import asyncio
 from asyncio import AbstractEventLoop, TimeoutError
 from typing import Type, Union, Callable, Any, Optional, Dict
@@ -20,20 +19,19 @@ from .utils import with_retry_and_timeout
 
 class RPCClient:
     _instances: Dict[str, 'RPCClient'] = {}
-    _locks: Dict[str, threading.Lock] = {}
+    _locks: Dict[str, asyncio.Lock] = {}
 
     def __init__(
         self,
         config: RabbitMQConfig,
         rpc_cls: Type[RPC],
         loop: Optional[AbstractEventLoop] = None,
-        logger: logging.Logger = logging.getLogger(__name__),
+        logger: Optional[logging.Logger] = None,
     ) -> None:
-        self.config: RabbitMQConfig = config
-        self.rpc_cls: Type[RPC] = rpc_cls
-        self.loop: Optional[AbstractEventLoop] = loop
-        self.logger: logging.Logger = logger
-
+        self.config = config
+        self.rpc_cls = rpc_cls
+        self.loop = loop or asyncio.get_event_loop()
+        self.logger = logger or logging.getLogger(__name__)
         self.rpc: Optional[Union[RPC, JsonRPC]] = None
         self.connection: Optional[RobustConnection] = None
 
@@ -54,9 +52,9 @@ class RPCClient:
         password: Optional[str] = None,
         vhost: Optional[str] = None,
         ssl: bool = False,
-        **kwargs, 
+        **kwargs,
     ) -> 'RPCClient':
-        if config is None:
+    if config is None:
             config = RabbitMQConfig(
                 host=host,
                 port=port,
@@ -70,11 +68,11 @@ class RPCClient:
         url = config.get_url()
 
         if url not in RPCClient._locks:
-            RPCClient._locks[url] = threading.Lock()
+            RPCClient._locks[url] = asyncio.Lock()
 
-        with RPCClient._locks[url]:
+        async with RPCClient._locks[url]:
             if url not in RPCClient._instances:
-                loop = asyncio.get_running_loop() if loop is None else loop
+                loop = loop or asyncio.get_running_loop()
 
                 if logger is None:
                     logging.basicConfig(level=logging.INFO)
