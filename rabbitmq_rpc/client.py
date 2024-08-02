@@ -17,16 +17,19 @@ from .exceptions import ConnectionError, RPCError, EventRegistrationError, Event
 from .utils import with_retry_and_timeout
 
 class RPCClient:
+    """A wrapper for aio-pika that simplifies the usage of RabbitMQ with asynchronous RPC."""
+
     _instances: Dict[str, 'RPCClient'] = {}
     _locks: Dict[str, asyncio.Lock] = {}
 
     def __init__(
         self,
         config: RabbitMQConfig,
-        rpc_cls: Type[RPC],
+        rpc_cls: Type[RPC] = RPC,
         loop: Optional[AbstractEventLoop] = None,
         logger: Optional[logging.Logger] = None,
     ) -> None:
+        """Initializes the RPCClient instance."""
         self.config = config
         self.rpc_cls = rpc_cls
         self.loop = loop or asyncio.get_event_loop()
@@ -36,6 +39,7 @@ class RPCClient:
 
     @property
     def url(self) -> str:
+        """Returns the RabbitMQ URL."""
         return self.config.get_url()
 
     @staticmethod
@@ -53,6 +57,7 @@ class RPCClient:
         ssl: bool = False,
         **kwargs,
     ) -> 'RPCClient':
+        """Creates or returns an existing instance of RPCClient."""
         if config is None:
             config = RabbitMQConfig(
                 host=host,
@@ -95,15 +100,18 @@ class RPCClient:
         logger: logging.Logger,
         **kwargs,
     ) -> 'RPCClient':
+        """Creates an instance of RPCClient."""
         instance = RPCClient(config=config, rpc_cls=rpc_cls, loop=loop, logger=logger)
         await instance.connect(**kwargs)
         return instance
 
     @property
     def is_connected(self) -> bool:
+        """Checks if the client is connected to RabbitMQ."""
         return self.rpc is not None and self.rpc.channel and not self.rpc.channel.is_closed
 
     async def connect(self, **kwargs: Any) -> None:
+        """Connects to the RabbitMQ server."""
         try:
             self.connection = await connect_robust(
                 url=URL(self.url), loop=self.loop,
@@ -117,6 +125,7 @@ class RPCClient:
             raise ConnectionError(f"Failed to connect to RabbitMQ: {str(e)}")
 
     async def reconnect(self, **kwargs: Any) -> None:
+        """Reconnects to the RabbitMQ server."""
         try:
             await self.close()
             await self.connect(**kwargs)
@@ -126,6 +135,7 @@ class RPCClient:
             raise e
 
     async def close(self) -> None:
+        """Closes the RabbitMQ connection."""
         if self.connection:
             try:
                 await self.connection.close()
@@ -137,26 +147,33 @@ class RPCClient:
                 raise ConnectionError(f"Failed to close RabbitMQ connection: {str(e)}")
 
     def set_event_loop(self, loop: AbstractEventLoop) -> None:
+        """Sets the event loop for the RPC client."""
         self.loop = loop
         if self.rpc:
             self.rpc.loop = loop
 
     def set_logger(self, logger: logging.Logger) -> None:
+        """Sets the logger for the RPC client."""
         self.logger = logger
 
     def set_rpc_class(self, rpc_cls: Type[RPC]) -> None:
+        """Sets the RPC class used by the client."""
         self.rpc_cls = rpc_cls
 
     def get_logger(self) -> logging.Logger:
+        """Returns the logger."""
         return self.logger
 
     def get_rpc_class(self) -> Type[RPC]:
+        """Returns the RPC class."""
         return self.rpc_cls
 
     def get_connection(self) -> Optional[RobustConnection]:
+        """Returns the current connection."""
         return self.connection
 
     async def get_channel(self) -> Channel:
+        """Returns an open channel, connecting if necessary."""
         if not self.is_connected:
             await self.connect()
         return self.rpc.channel
@@ -172,6 +189,7 @@ class RPCClient:
         retry_count: int = 3,
         **kwargs: Any,
     ) -> None:
+        """Sends an event with the specified parameters."""
         if not self.is_connected:
             raise ConnectionError("RPCClient is not connected")
         try:
@@ -204,6 +222,7 @@ class RPCClient:
         retry_count: int = 3,
         **kwargs: Any,
     ) -> Any:
+        """Calls an RPC method with the specified parameters."""
         if not self.is_connected:
             raise ConnectionError("RPCClient is not connected")
         try:
@@ -226,6 +245,7 @@ class RPCClient:
             raise RPCError(f"Failed to call event {event}: {str(e)}")
 
     async def register_event(self, event: str, handler: Callable[..., Any], **kwargs: Any) -> None:
+        """Registers an event handler."""
         if not self.is_connected:
             raise ConnectionError("RPCClient is not connected")
         try:
@@ -236,6 +256,7 @@ class RPCClient:
             raise EventRegistrationError(f"Failed to register event handler for {event}: {str(e)}")
 
     async def unregister_event(self, handler: Callable[..., Any]) -> None:
+        """Unregisters an event handler."""
         if not self.is_connected:
             raise ConnectionError("RPCClient is not connected")
         try:
@@ -256,6 +277,7 @@ class RPCClient:
         retry_count: int = 3,
         **kwargs: Any,
     ) -> None:
+        """Publishes an event to an exchange."""
         if not self.is_connected:
             raise ConnectionError("RPCClient is not connected")
         try:
@@ -279,6 +301,7 @@ class RPCClient:
         retry_count: int = 3, 
         **kwargs: Any,
     ) -> None:
+        """Subscribes to an event from a queue."""
         if not self.is_connected:
             raise ConnectionError("RPCClient is not connected")
         try:
@@ -298,6 +321,7 @@ class RPCClient:
         durable: bool, 
         **kwargs: Any,
     ) -> None:
+        """Helper function to subscribe to a queue."""
         try:
             channel = await self.connection.channel()
             queue = await channel.declare_queue(queue_name, durable=durable, **kwargs)
@@ -316,6 +340,7 @@ class RPCClient:
         durable: bool, 
         **kwargs: Any,
     ) -> None:
+        """Helper function to publish an event to an exchange."""
         try:
             channel = await self.connection.channel()
             exchange = await channel.declare_exchange(
@@ -338,7 +363,9 @@ class RPCClient:
             raise EventPublishError(f"Failed to publish event: {str(e)}")
 
     def __repr__(self) -> str:
+        """Returns a string representation of the RPCClient instance."""
         return f"RPCClient(config={self.config}, rpc_cls={self.rpc_cls})"
 
     def __str__(self) -> str:
+        """Returns a string representation of the RPCClient instance."""
         return self.__repr__()
