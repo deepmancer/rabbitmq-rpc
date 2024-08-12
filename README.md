@@ -17,7 +17,7 @@
 To install `rabbitmq_rpc`, use pip:
 
 ```sh
-pip install git+https://github.com/alirezaheidari-cs/rabbitmq-rpc.git
+pip install git+https://github.com/deepmancer/rabbitmq-rpc.git
 ```
 
 # Usage
@@ -124,4 +124,4 @@ await rpc_client.close()
 ```
 
 # License
-This project is licensed under the Apache License 2.0. See the [LICENSE](https://github.com/alirezaheidari-cs/rabbitmq-rpc/blob/main/LICENSE) file for more details.
+This project is licensed under the Apache License 2.0. See the [LICENSE](https://github.com/deepmancer/rabbitmq-rpc/blob/main/LICENSE) file for more details.

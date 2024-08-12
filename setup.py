@@ -11,7 +11,7 @@ setup(
     long_description_content_type="text/markdown",
     author="Alireza Heidari",
     author_email="alirezaheidari.cs@gmail.com",
-    url="https://github.com/alirezaheidari-cs/rabbitmq-rpc",
+    url="https://github.com/deepmancer/rabbitmq-rpc",
     packages=find_packages(),
     include_package_data=True,
     install_requires=[
@@ -40,8 +40,8 @@ setup(
     ],
     python_requires=">=3.6",
     project_urls={
-        "Documentation": "https://github.com/alirezaheidari-cs/rabbitmq-rpc#readme",
-        "Source": "https://github.com/alirezaheidari-cs/rabbitmq-rpc",
-        "Tracker": "https://github.com/alirezaheidari-cs/rabbitmq-rpc/issues",
+        "Documentation": "https://github.com/deepmancer/rabbitmq-rpc#readme",
+        "Source": "https://github.com/deepmancer/rabbitmq-rpc",
+        "Tracker": "https://github.com/deepmancer/rabbitmq-rpc/issues",
     },
 )
