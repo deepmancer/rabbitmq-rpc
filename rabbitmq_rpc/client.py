@@ -1,20 +1,20 @@
+import asyncio
 import json
 import logging
-import asyncio
 from asyncio import AbstractEventLoop, TimeoutError
 from typing import Type, Union, Callable, Any, Optional, Dict
 
 from aio_pika import (
-    connect_robust, DeliveryMode, Channel, ExchangeType, Message, exceptions, RobustConnection,
+        connect_robust, DeliveryMode, Channel, ExchangeType, Message, exceptions, RobustConnection,
 )
 from aio_pika.connection import URL
 from aio_pika.patterns import RPC, JsonRPC
-
 from pydantic import BaseModel
 
 from .config import RabbitMQConfig
 from .exceptions import ConnectionError, RPCError, EventRegistrationError, EventPublishError, EventSubscribeError
 from .utils import with_retry_and_timeout
+
 
 class RPCClient:
     """A wrapper for aio-pika that simplifies the usage of RabbitMQ with asynchronous RPC."""

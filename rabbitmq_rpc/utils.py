@@ -1,7 +1,7 @@
 from asyncio import TimeoutError, wait_for
-from typing import Any, Awaitable, TypeVar
+from typing import Awaitable, TypeVar
 
-from tenacity import retry, stop_after_attempt, wait_exponential, RetryError, wait_fixed
+from tenacity import retry, stop_after_attempt, RetryError, wait_fixed
 
 T = TypeVar('T')
 
