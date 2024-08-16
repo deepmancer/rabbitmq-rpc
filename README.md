@@ -1,30 +1,38 @@
-# rabbitmq-rpc
+# 🐇📡 RabbitMQ RPC Client
 
-`rabbitmq_rpc` is a Python package that provides an easy-to-use RabbitMQ RPC client for event-driven microservices. Built upon the `aio-pika` library, it simplifies interactions with RabbitMQ by handling the complexities of asynchronous communication and connection management.
+<p align="center">
+    <img src="https://img.shields.io/badge/RabbitMQ-FF6600.svg?style=for-the-badge&logo=RabbitMQ&logoColor=white" alt="RabbitMQ">
+    <img src="https://img.shields.io/badge/PyPI-3775A9.svg?style=for-the-badge&logo=PyPI&logoColor=white" alt="PyPI">
+    <img src="https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54" alt="Python">
+</p>
 
-# Features
-- **aio-pika Compatibility:** Fully compatible with the `aio-pika` library.
-- **Asynchronous RPC Client:** Built on top of `aio-pika`, it supports asynchronous communication for inter-service communication.
-- **Distributed Environment Integration:** Connects services across different containers and URLs.
-- **Event Registration and Handling:** Easily register and handle events with custom event handlers.
-- **Customizable RPC Protocol:** Supports any subclass of the `aio_pika.patterns.RPC` class.
-- **Thread-safe Connection:** Ensures that a single instance of the RPC client is used across threads using a singleton design pattern.
-- **Retry and Timeout Mechanism:** Built-in support for retrying failed calls and handling timeouts using `with_retry_and_timeout`.
-- **No Server-side Implementation Required:**  Only requires a running RabbitMQ server, with no need for RPC server implementations.
+`rabbitmq_rpc` is a powerful Python package that simplifies the implementation of RPC (Remote Procedure Call) patterns in event-driven microservices. Built on top of the `aio-pika` library, it abstracts the complexities of asynchronous communication with RabbitMQ, providing a seamless and efficient experience for developers.
 
-## Installation
+---
 
-To install `rabbitmq_rpc`, use pip:
+## ✨ Features
+
+- **🚀 Asynchronous RPC Client:** Fully built on `aio-pika`, enabling non-blocking inter-service communication.
+- **🌐 Distributed Environment Ready:** Effortlessly connects services across containers and different URLs.
+- **📜 Event Registration & Handling:** Easily define, register, and handle events with custom event handlers.
+- **🛠️ Customizable RPC Protocol:** Supports any subclass of `aio_pika.patterns.RPC` for tailored RPC interactions.
+- **🔒 Thread-Safe Connection:** Utilizes a singleton design pattern to maintain a single instance of the RPC client across threads.
+- **⏱️ Retry & Timeout Mechanism:** Built-in support for retrying failed calls and handling timeouts with `with_retry_and_timeout`.
+- **🛠️ No Server-side Implementation Required:** Just a running RabbitMQ server—no need for additional RPC server implementations.
+
+## 📦 Installation
+
+Get started by installing `rabbitmq_rpc` using pip:
 
 ```sh
 pip install git+https://github.com/deepmancer/rabbitmq-rpc.git
 ```
 
-# Usage
-Here's a basic example of how to use the RPCClient class in your project:
+## 🛠️ Quick Start
 
-## Registering Events:
-First, `Service 1` defines its event handlers and registers them with the RPCClient, simply by calling the `register_event` method:
+### 🎯 Registering Events
+
+In `Service 1`, define event handlers and register them with the `RPCClient` using the `register_event` method:
 
 ```python
 import asyncio
@@ -43,7 +51,7 @@ async def handle_division(x, y):
     return x / y
 
 async def main():
-    # Starting RPC client
+    # Initialize RPC client
     rpc_client = await RPCClient.create(
         host='localhost',
         port=5920,
@@ -53,30 +61,30 @@ async def main():
         ssl=False,
     )
 
-    # Registering events
+    # Register event handlers
     await rpc_client.register_event('service1.addition', handler_addition)
     await rpc_client.register_event('service1.subtraction', handle_subtraction)
     await rpc_client.register_event('service1.multiplication', handle_multiplication)
     await rpc_client.register_event('service1.division', handle_division)
     
-    # Start listening to events forever
+    # Keep listening for events
     await asyncio.Future()
 
 if __name__ == '__main__':
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main())
-
 ```
 
-## Calling Events
-Next, `Service 2` calls the events defined in `Service 1` (micro)service:
+### 📞 Calling Events
+
+In `Service 2`, invoke the events defined in `Service 1`:
 
 ```python
 import asyncio
 from rabbitmq_rpc import RPCClient
 
 async def main():
-    # Starting RPC client
+    # Initialize RPC client
     rpc_client = await RPCClient.create(
         host='localhost',
         port=5920,
@@ -86,29 +94,31 @@ async def main():
         ssl=False,
     )
     
-    # Calling service1 events
+    # Call service1 events
     add_result = await rpc_client.call('service1.addition', data={"x": 1, "y": 2})
-    print(add_result)
+    print(f"Addition Result: {add_result}")
+
     sub_result = await rpc_client.call('service1.subtraction', data={"x": 1, "y": 2})
-    print(sub_result)
+    print(f"Subtraction Result: {sub_result}")
+
     mul_result = await rpc_client.call('service1.multiplication', data={"x": 1, "y": 2})
-    print(mul_result)
+    print(f"Multiplication Result: {mul_result}")
 
-    # Specifying timeout and retry count per call
+    # Call with timeout and retry mechanism
     div_result = await rpc_client.call('service1.division', data={"x": 5, "y": 2}, timeout=10, retry_count=3)
-    print(div_result)
+    print(f"Division Result: {div_result}")
 
-    # Sending an event without waiting for the response    
+    # Send event without waiting for a response
     rpc_client.send('service1.multiplication', data={"x": 1, "y": 2})    
 
 if __name__ == '__main__':
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main())
-
 ```
 
-## Error Handling
-The package provides custom exceptions to handle various connection and RPC-related errors:
+### 🛡️ Error Handling
+
+`rabbitmq_rpc` provides custom exceptions to handle various connection and RPC-related issues:
 
 - `ConnectionError`
 - `RPCError`
@@ -116,12 +126,21 @@ The package provides custom exceptions to handle various connection and RPC-rela
 - `EventPublishError`
 - `EventSubscribeError`
 
-## Disconnecting
-To gracefully disconnect from RabbitMQ:
+### 🔌 Disconnecting
+
+Gracefully disconnect from RabbitMQ when you're done:
 
 ```python
 await rpc_client.close()
 ```
 
-# License
-This project is licensed under the Apache License 2.0. See the [LICENSE](https://github.com/deepmancer/rabbitmq-rpc/blob/main/LICENSE) file for more details.
+## 📄 License
+
+This project is licensed under the Apache License 2.0. For more details, see the [LICENSE](https://github.com/deepmancer/rabbitmq-rpc/blob/main/LICENSE) file.
+
+---
+
+**Elevate your microservices communication with `rabbitmq_rpc` today!** 🐇📡
+```
+
+This version is designed to be more engaging, with a clear structure, relevant icons, and a friendly tone that makes the README not only informative but also inviting for developers to explore and use the package.
