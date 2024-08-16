@@ -141,6 +141,3 @@ This project is licensed under the Apache License 2.0. For more details, see the
 ---
 
 **Elevate your microservices communication with `rabbitmq_rpc` today!** 🐇📡
-```
-
-This version is designed to be more engaging, with a clear structure, relevant icons, and a friendly tone that makes the README not only informative but also inviting for developers to explore and use the package.
