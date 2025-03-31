@@ -66,7 +66,7 @@ class RPCClient:
                 password=password,
                 vhost=vhost,
                 url=url,
-                ssl_connection=ssl,
+                ssl=ssl,
             )
 
         url = config.get_url()

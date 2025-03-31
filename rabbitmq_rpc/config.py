@@ -3,7 +3,7 @@ from typing import Optional, TypeVar
 
 from aio_pika.connection import make_url
 from decouple import config
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 T = TypeVar('T')
 
@@ -15,6 +15,7 @@ def env_var(field_name: str, default = None, cast_type = str) -> T:
         return default
 
 class RabbitMQConfig(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     host: Optional[str] = Field(default_factory=lambda: env_var("RABBITMQ_HOST", "localhost", str))
     port: Optional[int] = Field(default_factory=lambda: env_var("RABBITMQ_PORT", 5672, int))
     user: Optional[str] = Field(default_factory=lambda: env_var("RABBITMQ_USER", "rabbitmq_user", str))
